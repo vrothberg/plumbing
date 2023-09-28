@@ -1,4 +1,4 @@
-module foo.com
+module github.com/vrothberg/plumbing/tomp-experiments
 
 go 1.21.1
 

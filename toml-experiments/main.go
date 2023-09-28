@@ -9,9 +9,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type attributedStringSlice struct {
-	env        []string
-	attributes struct {
+type attributedStringSlice struct { // A "mixed-type array" in TOML.
+	slice      []string
+	attributes struct { // Using a struct allows for adding more attributes in the feature.
 		append bool
 	}
 }
@@ -21,17 +21,17 @@ func (ts *attributedStringSlice) UnmarshalTOML(data interface{}) error {
 	if !ok {
 		return fmt.Errorf("unable to cast to interface array: %v", data)
 	}
-	for _, x := range iFaceSlice {
+	for _, x := range iFaceSlice { // Iterate over each item in the slice.
 		kind := reflect.ValueOf(x).Kind()
 		switch kind {
-		case reflect.String:
-			ts.env = append(ts.env, fmt.Sprintf("%v", x))
-		case reflect.Map:
+		case reflect.String: // Strings are directly appended to the slice.
+			ts.env = append(ts.slice, fmt.Sprintf("%v", x))
+		case reflect.Map: // The attrivute struct is represented as a map.
 			attrMap, ok := x.(map[string]interface{})
 			if !ok {
 				return fmt.Errorf("unable to cast to map of interfaces: %v", data)
 			}
-			for k, v := range attrMap {
+			for k, v := range attrMap { // Iterate over all _supported_ keys.
 				switch k {
 				case "append":
 					boolVal, ok := v.(bool)
@@ -39,12 +39,12 @@ func (ts *attributedStringSlice) UnmarshalTOML(data interface{}) error {
 						return fmt.Errorf("unable to cast to bool: %v", k)
 					}
 					ts.attributes.append = boolVal
-				default:
-					return fmt.Errorf("invalid key %q in map: %v", k, attrMap)
+				default: // Unsupported map key.
+					return fmt.Errorf("unsupported key %q in map: %v", k, attrMap)
 				}
 			}
-		default:
-			return fmt.Errorf("unsupported kind %v: %v", kind, x)
+		default: // Unsupported item.
+			return fmt.Errorf("unsupported item in attributed string slice %v: %v", kind, x)
 		}
 	}
 	return nil
@@ -55,8 +55,11 @@ type configTOML struct {
 }
 
 func main() {
-	blob :=`
-env=["a", "b", "c", {append= true}]
+	// TOML supports so-called "mixed-type arrays".  A feature that we can
+	// exploit to attribute string slices.  In it's curent form attributes
+	// can be specified in the struct notation `{ ... }`.
+	blob := `
+env=["a", "b", "c", {append=true}]
 `
 	var data configTOML
 	_, err := toml.Decode(blob, &data)
